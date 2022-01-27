@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 
-MEMORY=32GiB
-DEVICE=/dev/nvme0n1
-USERNAME=erahhal
-HOSTNAME=upaya
+export MEMORY=32GiB
+export DEVICE=/dev/nvme0n1
+export USERNAME=erahhal
+export NEW_HOSTNAME=upaya
+
+read -p "THIS WILL WIPE YOUR SYSTEM - ARE YOU SURE? " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]
+then
+  exit 1
+fi
 
 sudo wipefs -a $DEVICE
 sudo sfdisk --delete $DEVICE
@@ -19,7 +26,7 @@ sudo mkfs.fat -F 32 -n EFI "${DEVICE}p3"
 
 sudo mount -t tmpfs none /mnt
 
-sudo zpool create \
+sudo zpool create -f \
   -o ashift=12 \
   -o autotrim=on \
   -R /mnt \
@@ -35,7 +42,6 @@ sudo zpool create \
   -O keylocation=prompt \
   -O keyformat=passphrase \
   rpool \
-  mirror \
   "${DEVICE}p1"
 
 sudo zfs create -o refreservation=1G -o mountpoint=none rpool/reserved
@@ -54,23 +60,33 @@ sudo zfs create -o canmount=on rpool/userdata/home/$USERNAME
 sudo mkdir /mnt/boot
 sudo mount "${DEVICE}p3" /mnt/boot
 
-nixos-generate-config --root /mnt
+sudo nixos-generate-config --root /mnt
 
-cp ./configuration.nix /mnt/etc/nixos/
+sudo cp ./configuration.nix /mnt/etc/nixos/
 
-sed -i '/.*fsType = "zfs".*/a \ \ \ \ \ \ options = [ "zfsutil" ];' /mnt/etc/nixos/hardware-configuration.nix
-sed -i '/.*fsType = "vfat".*/a \ \ \ \ \ \ options = [ "X-mount.mkdir" ];' /mnt/etc/nixos/hardware-configuration.nix
+sudo sed -i "s/users.users.jane/users.users.${USERNAME}/g" /mnt/etc/nixos/configuration.nix
+sudo sed -i '/.*fsType = "zfs".*/a \ \ \ \ \ \ options = [ "zfsutil" ];' /mnt/etc/nixos/hardware-configuration.nix
+sudo sed -i '/.*fsType = "vfat".*/a \ \ \ \ \ \ options = [ "X-mount.mkdir" ];' /mnt/etc/nixos/hardware-configuration.nix
 
-hostname $HOSTNAME
+sudo -E hostname $NEW_HOSTNAME
+export HOSTID=$(hostname | md5sum | head -c 8)
 
-HOSTID=$(hostname | md5sum | head -c 8)
-
-cat > /mnt/etc/nixos/config-host.nix<< EOF
+sudo -E bash -c '
+cat << EOF > /mnt/etc/nixos/config-host.nix
 { ... }:
 {
-  networking.hostName = "${HOSTNAME}";
+  networking.hostName = "${NEW_HOSTNAME}";
   networking.hostId = "${HOSTID}";
 }
-EOF
+EOF'
 
-nixos-install --show-trace --root /mnt
+sudo nixos-install --show-trace --root /mnt
+
+read -p "System installed.  Reboot?" -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]
+then
+  exit 1
+else
+  sudo reboot
+fi
