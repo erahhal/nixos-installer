@@ -1,9 +1,23 @@
 #!/usr/bin/env bash
 
+export SSD=1
+export ENCRYPT_DRIVE=1
+export UEFI=1
 export MEMORY=32GiB
-export DEVICE=/dev/nvme0n1
 export USERNAME=erahhal
 export NEW_HOSTNAME=upaya
+
+if [ $SSD == 1 ]; then
+  export DEVICE=/dev/nvme0n1
+  export PART1=p1
+  export PART2=p2
+  export PART3=p3
+else
+  export DEVICE=/dev/sdb
+  export PART1=1
+  export PART2=2
+  export PART3=3
+fi
 
 read -p "THIS WILL WIPE YOUR SYSTEM - ARE YOU SURE? " -n 1 -r
 echo
@@ -15,17 +29,29 @@ fi
 sudo wipefs -a $DEVICE
 sudo sfdisk --delete $DEVICE
 
-sudo parted $DEVICE -- mklabel gpt
-sudo parted $DEVICE -- mkpart primary 512MiB -${MEMORY}
-sudo parted $DEVICE -- mkpart primary linux-swap -${MEMORY} 100%
-sudo parted $DEVICE -- mkpart ESP fat32 1MiB 512MiB
-sudo parted $DEVICE -- set 3 esp on
+if [ $UEFI == 1]; then
+  sudo parted $DEVICE -- mklabel gpt
+  sudo parted $DEVICE -- mkpart primary 512MiB -${MEMORY}
+  sudo parted $DEVICE -- mkpart primary linux-swap -${MEMORY} 100%
+  sudo parted $DEVICE -- mkpart ESP fat32 1MiB 512MiB
+  sudo parted $DEVICE -- set 3 esp on
+  sudo mkfs.fat -F 32 -n EFI "${DEVICE}${PART3}"
+else
+  sudo parted $DEVICE -- mklabel msdos
+  sudo parted $DEVICE -- mkpart primary 512MiB -${MEMORY}
+  sudo parted $DEVICE -- mkpart primary linux-swap -${MEMORY} 100%
+  # boot partition
+  sudo parted $DEVICE -- mkpart primary 1MiB 512MiB
+  sudo set 1 boot on
+fi
 
-sudo mkswap -L swap "${DEVICE}p2"
-sudo mkfs.fat -F 32 -n EFI "${DEVICE}p3"
+sudo mkswap -L swap "${DEVICE}${PART2}"
 
 sudo mount -t tmpfs none /mnt
 
+if [ $ENCRYPT_DRIVE == 1]; then
+  ENCRYPT_OPTIONS="-O encryption=aes-256-gcm -O keylocation=prompt -O keyformat=passphrase"
+fi
 sudo zpool create -f \
   -o ashift=12 \
   -o autotrim=on \
@@ -38,11 +64,9 @@ sudo zpool create -f \
   -O normalization=formD \
   -O relatime=on \
   -O xattr=sa \
-  -O encryption=aes-256-gcm \
-  -O keylocation=prompt \
-  -O keyformat=passphrase \
+  $ENCRYPT_OPTIONS \
   rpool \
-  "${DEVICE}p1"
+  "${DEVICE}${PART1}"
 
 sudo zfs create -o refreservation=1G -o mountpoint=none rpool/reserved
 sudo zfs create -o canmount=off -o mountpoint=/ rpool/nixos
@@ -58,7 +82,7 @@ sudo zfs create -o canmount=on -o mountpoint=/root rpool/userdata/home/root
 sudo zfs create -o canmount=on rpool/userdata/home/$USERNAME
 
 sudo mkdir /mnt/boot
-sudo mount "${DEVICE}p3" /mnt/boot
+sudo mount "${DEVICE}${PART3}" /mnt/boot
 
 sudo nixos-generate-config --root /mnt
 
