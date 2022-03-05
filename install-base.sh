@@ -29,7 +29,7 @@ fi
 sudo wipefs -a $DEVICE
 sudo sfdisk --delete $DEVICE
 
-if [ $UEFI == 1]; then
+if [ $UEFI == 1 ]; then
   sudo parted $DEVICE -- mklabel gpt
   sudo parted $DEVICE -- mkpart primary 512MiB -${MEMORY}
   sudo parted $DEVICE -- mkpart primary linux-swap -${MEMORY} 100%
@@ -49,7 +49,7 @@ sudo mkswap -L swap "${DEVICE}${PART2}"
 
 sudo mount -t tmpfs none /mnt
 
-if [ $ENCRYPT_DRIVE == 1]; then
+if [ $ENCRYPT_DRIVE == 1 ]; then
   ENCRYPT_OPTIONS="-O encryption=aes-256-gcm -O keylocation=prompt -O keyformat=passphrase"
 fi
 sudo zpool create -f \
