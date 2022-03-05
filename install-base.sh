@@ -92,6 +92,56 @@ sudo sed -i "s/users.users.jane/users.users.${USERNAME}/g" /mnt/etc/nixos/config
 sudo sed -i '/.*fsType = "zfs".*/a \ \ \ \ \ \ options = [ "zfsutil" ];' /mnt/etc/nixos/hardware-configuration.nix
 sudo sed -i '/.*fsType = "vfat".*/a \ \ \ \ \ \ options = [ "X-mount.mkdir" ];' /mnt/etc/nixos/hardware-configuration.nix
 
+if [ $UEFI == 1 ]; then
+  sudo -E bash -c '
+cat << EOF > /mnt/etc/nixos/config-boot.nix
+{ ... }:
+{
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+}
+EOF'
+else
+  sudo -E bash -c '
+cat << EOF > /mnt/etc/nixos/config-boot.nix
+{ ... }:
+{
+  boot.loader.grub.enable = true;
+  boot.loader.grub.version = 2;
+  boot.loader.grub.device = "/dev/sdb";
+  boot.loader.grub.useOSProber = true;
+}
+EOF'
+fi
+
+if [ $SSD == 1 ]; then
+  sudo -E bash -c '
+cat << EOF > /mnt/etc/nixos/config-swap.nix
+{ ... }:
+{
+  swapDevices = [
+    {
+      device = "/dev/nvme0n1p2";
+      randomEncryption = true;
+    }
+  ];
+}
+EOF'
+else
+  sudo -E bash -c '
+cat << EOF > /mnt/etc/nixos/config-swap.nix
+{ ... }:
+{
+  swapDevices = [
+    {
+      device = "/dev/sdb2";
+      randomEncryption = true;
+    }
+  ];
+}
+EOF'
+fi
+
 sudo -E hostname $NEW_HOSTNAME
 export HOSTID=$(hostname | md5sum | head -c 8)
 

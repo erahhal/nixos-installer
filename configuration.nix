@@ -8,12 +8,10 @@
   imports =
     [ # Include the results of the hardware scan.
       ./hardware-configuration.nix
+      ./config-boot.nix
       ./config-host.nix
+      ./config-swap.nix
     ];
-
-  # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
 
   # ---------------------------------------
   # custom
@@ -42,13 +40,6 @@
     # autoSnapshot.enable = true;
   };
 
-  swapDevices = [
-    {
-      device = "/dev/nvme0n1p2";
-      randomEncryption = true;
-    }
-  ];
-
   environment.systemPackages = with pkgs; [
     vim
     git
@@ -70,6 +61,8 @@
   networking.useDHCP = false;
   networking.interfaces.enp12s0.useDHCP = true;
   networking.interfaces.wlp2s0.useDHCP = true;
+  # HP SFP+ interface
+  networking.interfaces.enp4s0f0.useDHCP = true;
 
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
