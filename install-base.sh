@@ -41,8 +41,8 @@ else
   sudo parted $DEVICE -- mkpart primary 512MiB -${MEMORY}
   sudo parted $DEVICE -- mkpart primary linux-swap -${MEMORY} 100%
   # boot partition
-  sudo parted $DEVICE -- mkpart primary 1MiB 512MiB
-  sudo set 1 boot on
+  sudo parted $DEVICE -- mkpart primary fat32 1MiB 512MiB
+  sudo parted $DEVICE -- set 3 boot on
 fi
 
 sudo mkswap -L swap "${DEVICE}${PART2}"
